@@ -1,6 +1,6 @@
 # Resizable AG Grid (React)
 
-A Vite + React (JS) demo of a custom grid component built on
+A Next.js **12.x** + React (JS) demo of a custom grid component built on
 [`ag-grid-react`](https://www.npmjs.com/package/ag-grid-react) **v32**.
 
 ## Features
@@ -17,18 +17,21 @@ A Vite + React (JS) demo of a custom grid component built on
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:3000
 ```
 
 ## Project structure
 
 ```
+pages/
+  _app.js                    # Next.js App — loads global + AG Grid styles
+  index.js                   # page that renders the App component
 src/
   App.jsx                    # page with Open/Close buttons
   demoData.js                # demo column definitions + row data
   components/ResizableGrid.jsx  # custom ag-grid-react wrapper (localStorage persistence)
   index.css                  # page styles
-  main.jsx                   # React entry point
+next.config.js               # Next.js config (React Strict Mode)
 ```
 
 ## How persistence works

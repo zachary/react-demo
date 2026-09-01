@@ -1,10 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 
-// AG Grid styles (CSS only, framework-agnostic).
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
-
 const DEFAULT_STORAGE_KEY = "ag-grid-column-state";
 
 // AG Grid reports the source of every columnResized event. Only resizes
@@ -13,7 +9,14 @@ const DEFAULT_STORAGE_KEY = "ag-grid-column-state";
 // NOT overwrite the persisted widths.
 const USER_RESIZE_SOURCE = "uiColumnResized";
 
+// localStorage only exists in the browser. Next.js server-renders this
+// component, so every access must be guarded to avoid `ReferenceError`.
+function isBrowser() {
+  return typeof window !== "undefined";
+}
+
 function loadSavedColumnState(storageKey) {
+  if (!isBrowser()) return null;
   try {
     const saved = localStorage.getItem(storageKey);
     return saved ? JSON.parse(saved) : null;
@@ -45,6 +48,7 @@ export default function ResizableGrid({
 }) {
   const gridApiRef = useRef(null);
   const [hasSavedState, setHasSavedState] = useState(() => {
+    if (!isBrowser()) return false;
     try {
       return !!localStorage.getItem(storageKey);
     } catch {
@@ -61,7 +65,6 @@ export default function ResizableGrid({
     [storageKey]
   );
   const restoredColumnDefs = useMemo(() => {
-    console.log('load column state', savedColumnState);
     if (!savedColumnState) return columnDefs;
     return columnDefs.map((def) => {
       const colId = def.colId ?? def.field;
@@ -89,12 +92,11 @@ export default function ResizableGrid({
   // --- Save ---------------------------------------------------------------
   const saveColumnState = useCallback(() => {
     const api = gridApiRef.current;
-    if (!api) return;
+    if (!api || !isBrowser()) return;
     try {
       const state = api.getColumnState();
       localStorage.setItem(storageKey, JSON.stringify(state));
       setHasSavedState(true);
-      console.log('save column state', savedColumnState);
     } catch (err) {
       console.warn("Could not save grid column state:", err);
     }
@@ -121,6 +123,7 @@ export default function ResizableGrid({
 
   // --- Reset widths to the original defaults ----------------------------------
   const resetColumnState = useCallback(() => {
+    if (!isBrowser()) return;
     localStorage.removeItem(storageKey);
     setHasSavedState(false);
     const api = gridApiRef.current;
