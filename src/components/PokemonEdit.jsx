@@ -1,11 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo } from "react";
 
 function isUrl(value) {
   return typeof value === "string" && /^https?:\/\//i.test(value);
@@ -16,86 +9,44 @@ function isUrl(value) {
  * -----------
  * The row detail popup used by `ResizableGrid`.
  *
- * It renders nothing until it is opened and owns all of its own state, so the
- * grid only has to call `open(row)` through a ref.
+ * It is a controlled, presentational dialog: the parent (`PokemonComponent`)
+ * owns the row list, picks the current record and passes only that single
+ * record down here, together with its position (`index` / `total`) and the
+ * handlers used to move between records.
  *
  * Features:
- *  - Shows the clicked row's details, one field per configured grid column.
- *  - Previous / Next buttons walk the rows in the order they are displayed in
- *    the grid. Navigation wraps around: Next on the last row shows the first
- *    row, Previous on the first row shows the last. The footer shows which
- *    record is displayed (`Record 3 of 20`).
+ *  - Shows the current record's details, one field per configured grid column.
+ *  - Previous / Next buttons are delegated to the parent, which walks the rows
+ *    in the order they are displayed in the grid. Navigation wraps around:
+ *    Next on the last row shows the first row, Previous on the first row shows
+ *    the last. The footer shows which record is displayed (`Record 3 of 20`).
  *  - Escape closes the dialog, arrow keys move between records.
  *  - Clicking the backdrop closes the dialog.
  */
-const PokemonEdit = forwardRef(function PokemonEdit(
-  { rowData, columnDefs, gridApiRef },
-  ref
-) {
-  // `modal` is null when closed, otherwise { rows, index }: the snapshot of
-  // displayed rows plus the index of the record shown in the dialog.
-  const [modal, setModal] = useState(null);
-
-  const open = useCallback(
-    (data) => {
-      const api = gridApiRef?.current;
-      let rows = rowData ?? [];
-      if (api) {
-        // Prefer the rows in the order the user actually sees them, so
-        // Previous/Next follow the current sort/filter.
-        const displayed = [];
-        api.forEachNodeAfterFilterAndSort((node) => {
-          if (node.data) displayed.push(node.data);
-        });
-        if (displayed.length) rows = displayed;
-      }
-      const index = rows.indexOf(data);
-      if (index < 0 || rows.length === 0) return;
-      setModal({ rows, index });
-    },
-    [rowData, gridApiRef]
-  );
-
-  const closeModal = useCallback(() => setModal(null), []);
-
-  const showNextRow = useCallback(() => {
-    setModal((current) => {
-      if (!current || current.rows.length === 0) return current;
-      // Wrap: after the last record, Next goes back to the first.
-      return { ...current, index: (current.index + 1) % current.rows.length };
-    });
-  }, []);
-
-  const showPreviousRow = useCallback(() => {
-    setModal((current) => {
-      if (!current || current.rows.length === 0) return current;
-      // Wrap: before the first record, Previous goes to the last.
-      return {
-        ...current,
-        index: (current.index - 1 + current.rows.length) % current.rows.length,
-      };
-    });
-  }, []);
-
-  useImperativeHandle(
-    ref,
-    () => ({ open, close: closeModal }),
-    [open, closeModal]
-  );
+export default function PokemonEdit({
+  // The single record to display. `null` keeps the dialog closed.
+  record,
+  // Zero-based position of `record`, and how many records it can be walked to.
+  index = 0,
+  total = 0,
+  columnDefs,
+  onPrevious,
+  onNext,
+  onClose,
+}) {
+  const isOpen = Boolean(record);
 
   // Escape closes the dialog, arrow keys move between records.
   useEffect(() => {
-    if (!modal) return undefined;
+    if (!isOpen) return undefined;
     const onKeyDown = (event) => {
-      if (event.key === "Escape") closeModal();
-      else if (event.key === "ArrowRight") showNextRow();
-      else if (event.key === "ArrowLeft") showPreviousRow();
+      if (event.key === "Escape") onClose?.();
+      else if (event.key === "ArrowRight") onNext?.();
+      else if (event.key === "ArrowLeft") onPrevious?.();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [modal, closeModal, showNextRow, showPreviousRow]);
-
-  const currentRow = modal ? modal.rows[modal.index] : null;
+  }, [isOpen, onClose, onNext, onPrevious]);
 
   // Detail rows are driven by the configured columns, so any grid built with
   // this component gets the modal for free.
@@ -107,13 +58,13 @@ const PokemonEdit = forwardRef(function PokemonEdit(
     [columnDefs]
   );
 
-  if (!modal || !currentRow) return null;
+  if (!record) return null;
 
   return (
     <div
       className="modal-backdrop"
       role="presentation"
-      onClick={closeModal}
+      onClick={onClose}
     >
       <div
         className="modal"
@@ -127,7 +78,7 @@ const PokemonEdit = forwardRef(function PokemonEdit(
           <button
             type="button"
             className="btn btn-ghost modal-close"
-            onClick={closeModal}
+            onClick={onClose}
             aria-label="Close dialog"
           >
             ✕
@@ -136,7 +87,7 @@ const PokemonEdit = forwardRef(function PokemonEdit(
 
         <div className="modal-body">
           {detailFields.map(({ field, label }) => {
-            const value = currentRow[field];
+            const value = record[field];
             return (
               <div className="detail-row" key={field}>
                 <span className="detail-label">{label}</span>
@@ -158,19 +109,19 @@ const PokemonEdit = forwardRef(function PokemonEdit(
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={showPreviousRow}
+            onClick={onPrevious}
           >
             ← Previous
           </button>
 
           <span className="modal-counter" role="status">
-            Record {modal.index + 1} of {modal.rows.length}
+            Record {index + 1} of {total}
           </span>
 
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={showNextRow}
+            onClick={onNext}
           >
             Next →
           </button>
@@ -178,6 +129,4 @@ const PokemonEdit = forwardRef(function PokemonEdit(
       </div>
     </div>
   );
-});
-
-export default PokemonEdit;
+}
