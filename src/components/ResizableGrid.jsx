@@ -3,6 +3,9 @@ import { AgGridReact } from "ag-grid-react";
 
 const DEFAULT_STORAGE_KEY = "ag-grid-column-state";
 
+// Column id of the generated "Edit" button column.
+const ACTIONS_COL_ID = "actions";
+
 // AG Grid reports the source of every columnResized event. Only resizes
 // caused by the user dragging a header border have source "uiColumnResized".
 // Programmatic width changes (source "api") and internal layout passes must
@@ -34,6 +37,9 @@ function loadSavedColumnState(storageKey) {
  * Features:
  *  - All columns are resizable (drag the header border).
  *  - All columns are sortable (click the header).
+ *  - When an `onEditRow` callback is supplied, a generated "Edit" button
+ *    column calls it with the clicked row. The grid itself does not render
+ *    any dialog; the parent owns that (see `PokemonComponent`).
  *  - Column widths and sort state are saved to `localStorage` when the user
  *    finishes a drag or changes the sort.
  *  - On mount, the saved widths and sort are baked into the column definitions
@@ -45,8 +51,17 @@ export default function ResizableGrid({
   rowData,
   columnDefs,
   storageKey = DEFAULT_STORAGE_KEY,
+  title = "Demo Grid",
+  // Called with the clicked row when the generated "Edit" button is pressed.
+  // Omit it to render a plain grid with no Edit column.
+  onEditRow,
+  // Optional ref the parent can pass in to receive the AG Grid API, so a
+  // sibling component can read the displayed rows. Falls back to a local ref
+  // when the grid is used on its own.
+  gridApiRef: externalGridApiRef,
 }) {
-  const gridApiRef = useRef(null);
+  const internalGridApiRef = useRef(null);
+  const gridApiRef = externalGridApiRef ?? internalGridApiRef;
   const [hasSavedState, setHasSavedState] = useState(() => {
     if (!isBrowser()) return false;
     try {
@@ -55,6 +70,46 @@ export default function ResizableGrid({
       return false;
     }
   });
+
+  // --- Generated "Edit" column ---------------------------------------------
+  // The button only reports the clicked row upwards; the parent decides what
+  // to do with it.
+  const actionsColumnDef = useMemo(
+    () =>
+      onEditRow
+        ? {
+            colId: ACTIONS_COL_ID,
+            headerName: "",
+            width: 110,
+            minWidth: 96,
+            sortable: false,
+            resizable: true,
+            suppressMovable: true,
+            pinned: "right",
+            cellClass: "actions-cell",
+            cellRenderer: (params) => (
+              <button
+                type="button"
+                className="btn btn-ghost row-edit-btn"
+                title="Edit this row"
+                onClick={() => onEditRow(params.data)}
+              >
+                Edit
+              </button>
+            ),
+          }
+        : null,
+    [onEditRow]
+  );
+
+  // Only the columns the caller passed are persisted-sensitive, but the
+  // actions column participates in the saved state too, so append it before
+  // restoring.
+  const allColumnDefs = useMemo(
+    () =>
+      actionsColumnDef ? [...columnDefs, actionsColumnDef] : [...columnDefs],
+    [columnDefs, actionsColumnDef]
+  );
 
   // --- Load: bake saved widths into the column defs (once per mount) -------
   // Note: this assumes `columnDefs` is a stable reference from the parent.
@@ -65,8 +120,8 @@ export default function ResizableGrid({
     [storageKey]
   );
   const restoredColumnDefs = useMemo(() => {
-    if (!savedColumnState) return columnDefs;
-    return columnDefs.map((def) => {
+    if (!savedColumnState) return allColumnDefs;
+    return allColumnDefs.map((def) => {
       const colId = def.colId ?? def.field;
       const saved = savedColumnState.find((c) => c.colId === colId);
       if (!saved) return def;
@@ -83,7 +138,7 @@ export default function ResizableGrid({
       }
       return restored;
     });
-  }, [columnDefs, savedColumnState]);
+  }, [allColumnDefs, savedColumnState]);
 
   const onGridReady = useCallback((params) => {
     gridApiRef.current = params.api;
@@ -128,19 +183,19 @@ export default function ResizableGrid({
     setHasSavedState(false);
     const api = gridApiRef.current;
     if (!api) return;
-    const defaults = columnDefs.map((def) => ({
+    const defaults = allColumnDefs.map((def) => ({
       colId: def.colId ?? def.field,
       width: def.width,
     }));
     // Programmatic change → source "api" → not persisted by onColumnResized.
     api.applyColumnState({ state: defaults });
-  }, [storageKey, columnDefs]);
+  }, [storageKey, allColumnDefs]);
 
   return (
     <div className="grid-card">
       <div className="grid-toolbar">
         <span className="grid-title">
-          Demo Grid{" "}
+          {title}{" "}
           <span className="grid-meta">
             {hasSavedState ? "state saved in localStorage" : "default widths"}
           </span>
