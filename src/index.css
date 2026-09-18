@@ -174,18 +174,97 @@ body {
   background: var(--danger);
 }
 
-/* ---------- Pagination ---------- */
-.pagination-bar {
+/* ---------- AG Grid pagination ----------
+   AG Grid's built-in pagination panel, themed here by overriding its own class
+   selectors. Because these are AG Grid's generic `ag-paging-*` hooks (rather
+   than a theme-prefixed selector such as `.ag-theme-quartz ...`), the styling
+   applies to every default theme — Quartz, Alpine, Material and friends.
+   The selectors are anchored on `.ag-root-wrapper` so they outrank AG Grid's
+   own rules without resorting to `!important`. */
+.ag-root-wrapper .ag-paging-panel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 14px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 18px;
+  height: auto;
+  min-height: 56px;
+  padding: 8px 18px;
+  background: var(--bg-soft);
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 16px;
 }
 
-.pagination-info {
-  font-size: 14px;
+/* AG Grid spaces the panel children with inline margins; use `gap` instead. */
+.ag-root-wrapper .ag-paging-panel > * {
+  margin: 0;
+}
+
+/* "1 to 20 of 1302" */
+.ag-root-wrapper .ag-paging-row-summary-panel,
+.ag-root-wrapper .ag-paging-description {
   color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ag-root-wrapper .ag-paging-row-summary-panel .ag-paging-row-summary-panel-number,
+.ag-root-wrapper .ag-paging-page-summary-panel .ag-paging-number {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* First / Previous / Next / Last */
+.ag-root-wrapper .ag-paging-panel .ag-paging-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 15px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.ag-root-wrapper .ag-paging-panel .ag-paging-button:hover:not(.ag-disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.ag-root-wrapper .ag-paging-panel .ag-paging-button.ag-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Rows-per-page picker */
+.ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-label {
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+.ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-picker-field-wrapper {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  min-height: 34px;
+  padding-left: 10px;
+  padding-right: 6px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+/* ---------- Error note ---------- */
+.error-note {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: 15px;
+  color: #ff8b8e;
 }
 
 /* ---------- Grid card ---------- */

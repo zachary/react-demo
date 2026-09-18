@@ -1,38 +1,26 @@
 import { useEffect, useState } from "react";
 import PokemonComponent from "./components/PokemonComponent.jsx";
-import { fetchPokemonPage, pokemonColumnDefs } from "./pokemonApi.js";
+import { fetchAllPokemon, pokemonColumnDefs } from "./pokemonApi.js";
 
 const STORAGE_KEY = "ag-grid-demo-column-state";
-const PAGE_LIMIT = 20;
-
-// The API's `next` / `previous` fields are absolute URLs carrying the next
-// offset, e.g. https://pokeapi.co/api/v2/pokemon?offset=20&limit=20.
-function offsetFromPageUrl(url) {
-  if (!url) return null;
-  try {
-    return Number(new URL(url).searchParams.get("offset"));
-  } catch {
-    return null;
-  }
-}
+const DEFAULT_PAGE_SIZE = 20;
 
 export default function App() {
   const [showGrid, setShowGrid] = useState(false);
   const [rowData, setRowData] = useState([]);
-  const [pageInfo, setPageInfo] = useState(null); // { count, next, previous }
-  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Pagination is handled by AG Grid itself, so every row is loaded up front
+  // and the grid's own pagination panel pages through them on the client.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchPokemonPage(PAGE_LIMIT, offset)
+    fetchAllPokemon()
       .then((data) => {
         if (cancelled) return;
         setRowData(data.results);
-        setPageInfo({ count: data.count, next: data.next, previous: data.previous });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -45,17 +33,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [offset]);
-
-  const goToNext = () => {
-    const next = offsetFromPageUrl(pageInfo?.next);
-    if (next !== null) setOffset(next);
-  };
-
-  const goToPrevious = () => {
-    const previous = offsetFromPageUrl(pageInfo?.previous);
-    if (previous !== null) setOffset(previous);
-  };
+  }, []);
 
   return (
     <div className="app">
@@ -74,7 +52,8 @@ export default function App() {
           </a>
           . Drag a column header border to resize it, or click a header to sort.
           Widths and sort state are saved to <code>localStorage</code> and
-          restored automatically when you reopen the grid.
+          restored automatically when you reopen the grid. Rows are paged by AG
+          Grid's own pagination panel.
         </p>
       </header>
 
@@ -102,45 +81,21 @@ export default function App() {
         </span>
       </div>
 
+      {error && (
+        <p className="error-note" role="alert">
+          Failed to load Pokémon: {error}
+        </p>
+      )}
+
       {showGrid && (
-        <>
-          <div className="pagination-bar">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={goToPrevious}
-              disabled={!pageInfo?.previous || loading}
-            >
-              ← Previous
-            </button>
-
-            <span className="pagination-info" role="status">
-              {loading
-                ? "Loading…"
-                : error
-                ? `Failed to load: ${error}`
-                : pageInfo
-                ? `Showing ${rowData.length} of ${pageInfo.count.toLocaleString()} Pokémon`
-                : ""}
-            </span>
-
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={goToNext}
-              disabled={!pageInfo?.next || loading}
-            >
-              Next →
-            </button>
-          </div>
-
-          <PokemonComponent
-            title="Pokémon"
-            rowData={rowData}
-            columnDefs={pokemonColumnDefs}
-            storageKey={STORAGE_KEY}
-          />
-        </>
+        <PokemonComponent
+          title="Pokémon"
+          rowData={rowData}
+          columnDefs={pokemonColumnDefs}
+          storageKey={STORAGE_KEY}
+          pageSize={DEFAULT_PAGE_SIZE}
+          loading={loading}
+        />
       )}
     </div>
   );

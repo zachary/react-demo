@@ -46,12 +46,23 @@ function loadSavedColumnState(storageKey) {
  *    handed to the grid, so columns are *created* with the persisted state.
  *    This avoids a race where the grid's post-ready layout pass resets state
  *    applied via `applyColumnState` inside `onGridReady`.
+ *  - Paging uses AG Grid's own pagination panel. The panel is themed from the
+ *    global stylesheet by overriding AG Grid's `ag-paging-*` class selectors
+ *    (see `src/index.css`), so no custom pagination component is involved.
  */
+
+// Rows-per-page choices offered by the native pagination panel.
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
 export default function ResizableGrid({
   rowData,
   columnDefs,
   storageKey = DEFAULT_STORAGE_KEY,
   title = "Demo Grid",
+  // Rows per page in AG Grid's pagination panel.
+  pageSize = 20,
+  // Shows AG Grid's native loading overlay while rows are being fetched.
+  loading = false,
   // Called with the clicked row when the generated "Edit" button is pressed.
   // Omit it to render a plain grid with no Edit column.
   onEditRow,
@@ -191,6 +202,8 @@ export default function ResizableGrid({
     api.applyColumnState({ state: defaults });
   }, [storageKey, allColumnDefs]);
 
+  // The container is taller than the visible row area so the native pagination
+  // panel at the bottom of the grid doesn't eat into the rows.
   return (
     <div className="grid-card">
       <div className="grid-toolbar">
@@ -212,7 +225,7 @@ export default function ResizableGrid({
       <div
         className="ag-theme-quartz grid-container"
         data-ag-theme-mode="dark"
-        style={{ height: "420px", width: "100%" }}
+        style={{ height: "480px", width: "100%" }}
       >
         <AgGridReact
           rowData={rowData}
@@ -221,6 +234,10 @@ export default function ResizableGrid({
           onColumnResized={onColumnResized}
           onSortChanged={onSortChanged}
           defaultColDef={{ resizable: true, sortable: true }}
+          pagination
+          paginationPageSize={pageSize}
+          paginationPageSizeSelector={PAGE_SIZE_OPTIONS}
+          loading={loading}
           animateRows
         />
       </div>

@@ -22,6 +22,15 @@ export async function fetchPokemonPage(limit = 20, offset = 0) {
   return { ...data, results };
 }
 
+// AG Grid's built-in pagination works on the client-side row model, so the
+// whole list is fetched in one request and the grid pages through it locally.
+// `limit=100000` is the largest value PokeAPI accepts and comfortably covers
+// every Pokémon currently in the resource list.
+export async function fetchAllPokemon() {
+  const data = await fetchPokemonPage(100000, 0);
+  return { count: data.count, results: data.results };
+}
+
 // Grid columns matching the shape of the response above.
 export const pokemonColumnDefs = [
   { field: "id", headerName: "ID", width: 90 },

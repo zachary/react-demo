@@ -27,6 +27,9 @@ export default function PokemonComponent({
   columnDefs,
   storageKey,
   title = "Pokémon",
+  // Rows per page for AG Grid's built-in pagination panel.
+  pageSize = 20,
+  loading = false,
 }) {
   const gridApiRef = useRef(null);
   // `modal` is null when closed, otherwise { rows, index }: the snapshot of
@@ -85,6 +88,8 @@ export default function PokemonComponent({
         storageKey={storageKey}
         gridApiRef={gridApiRef}
         onEditRow={handleEditRow}
+        pageSize={pageSize}
+        loading={loading}
       />
 
       <PokemonEdit
