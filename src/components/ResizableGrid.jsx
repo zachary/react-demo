@@ -47,8 +47,10 @@ function loadSavedColumnState(storageKey) {
  *    This avoids a race where the grid's post-ready layout pass resets state
  *    applied via `applyColumnState` inside `onGridReady`.
  *  - Paging uses AG Grid's own pagination panel. The panel is themed from the
- *    global stylesheet by overriding AG Grid's `ag-paging-*` class selectors
- *    (see `src/index.css`), so no custom pagination component is involved.
+ *    global stylesheet by overriding AG Grid's `ag-paging-*` class selectors,
+ *    scoped to this component's `resizable-grid` marker class so the styles
+ *    don't leak onto other grids (see `src/index.css`), so no custom
+ *    pagination component is involved.
  */
 
 // Rows-per-page choices offered by the native pagination panel.
@@ -222,8 +224,11 @@ export default function ResizableGrid({
         </button>
       </div>
 
+      {/* `resizable-grid` is the marker class the pagination styles in
+          src/index.css are scoped to, so they don't leak onto other
+          ag-grid-react components on the page. */}
       <div
-        className="ag-theme-quartz grid-container"
+        className="ag-theme-quartz grid-container resizable-grid"
         data-ag-theme-mode="dark"
         style={{ height: "480px", width: "100%" }}
       >

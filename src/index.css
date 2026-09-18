@@ -176,12 +176,14 @@ body {
 
 /* ---------- AG Grid pagination ----------
    AG Grid's built-in pagination panel, themed here by overriding its own class
-   selectors. Because these are AG Grid's generic `ag-paging-*` hooks (rather
-   than a theme-prefixed selector such as `.ag-theme-quartz ...`), the styling
-   applies to every default theme — Quartz, Alpine, Material and friends.
-   The selectors are anchored on `.ag-root-wrapper` so they outrank AG Grid's
-   own rules without resorting to `!important`. */
-.ag-root-wrapper .ag-paging-panel {
+   selectors. `ag-paging-*` are AG Grid's generic hooks, so on their own they
+   would theme *every* grid on the page. The rules are therefore scoped to
+   `.resizable-grid`, the marker class added by `ResizableGrid` to its own
+   container: only that component's pagination is styled, while any other
+   `ag-grid-react` on the page keeps AG Grid's default panel. The selectors are
+   still anchored on `.ag-root-wrapper` so they outrank AG Grid's own rules
+   without resorting to `!important`. */
+.resizable-grid .ag-root-wrapper .ag-paging-panel {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -197,26 +199,26 @@ body {
 }
 
 /* AG Grid spaces the panel children with inline margins; use `gap` instead. */
-.ag-root-wrapper .ag-paging-panel > * {
+.resizable-grid .ag-root-wrapper .ag-paging-panel > * {
   margin: 0;
 }
 
 /* "1 to 20 of 1302" */
-.ag-root-wrapper .ag-paging-row-summary-panel,
-.ag-root-wrapper .ag-paging-description {
+.resizable-grid .ag-root-wrapper .ag-paging-row-summary-panel,
+.resizable-grid .ag-root-wrapper .ag-paging-description {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.ag-root-wrapper .ag-paging-row-summary-panel .ag-paging-row-summary-panel-number,
-.ag-root-wrapper .ag-paging-page-summary-panel .ag-paging-number {
+.resizable-grid .ag-root-wrapper .ag-paging-row-summary-panel .ag-paging-row-summary-panel-number,
+.resizable-grid .ag-root-wrapper .ag-paging-page-summary-panel .ag-paging-number {
   color: var(--text);
   font-weight: 600;
 }
 
 /* First / Previous / Next / Last */
-.ag-root-wrapper .ag-paging-panel .ag-paging-button {
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -231,24 +233,24 @@ body {
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.ag-root-wrapper .ag-paging-panel .ag-paging-button:hover:not(.ag-disabled) {
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-button:hover:not(.ag-disabled) {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--accent);
   color: var(--text);
 }
 
-.ag-root-wrapper .ag-paging-panel .ag-paging-button.ag-disabled {
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-button.ag-disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
 /* Rows-per-page picker */
-.ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-label {
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-label {
   color: var(--text-dim);
   font-size: 15px;
 }
 
-.ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-picker-field-wrapper {
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-picker-field-wrapper {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 9px;
