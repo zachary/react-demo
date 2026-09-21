@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AgGridReact } from "ag-grid-react";
 
 const DEFAULT_STORAGE_KEY = "ag-grid-column-state";
@@ -49,19 +50,55 @@ function loadSavedColumnState(storageKey) {
  *  - Paging uses AG Grid's own pagination panel. The panel is themed from the
  *    global stylesheet by overriding AG Grid's `ag-paging-*` class selectors,
  *    scoped to this component's `resizable-grid` marker class so the styles
- *    don't leak onto other grids (see `src/index.css`), so no custom
- *    pagination component is involved.
+ *    don't leak onto other grids (see `src/index.css`).
+ *  - The rows-per-page dropdown is the one exception: it is portalled into the
+ *    panel's page-size slot so it can offer an "All" entry next to the numeric
+ *    presets (see `PageSizePicker`).
  */
 
-// Rows-per-page choices offered by the native pagination panel.
+// Rows-per-page choices offered by the pagination panel.
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+// Sentinel for the "All" entry of the rows-per-page dropdown. It never reaches
+// AG Grid: it selects the full row count instead of a fixed page size.
+const ALL_ROWS = "all";
+
+/**
+ * Rows-per-page dropdown rendered into AG Grid's pagination panel.
+ *
+ * AG Grid v32 only accepts numbers in `paginationPageSizeSelector` and labels
+ * each option with that number, so an "All" entry cannot be produced through
+ * the public API. Instead `paginationPageSizeSelector={false}` leaves the
+ * panel's page-size slot empty and this picker is portalled into it: the panel
+ * keeps its layout and only the dropdown itself is ours.
+ */
+function PageSizePicker({ selection, sizes, showAll, onChange }) {
+  return (
+    <label className="page-size-picker">
+      <span className="ag-label">Page Size:</span>
+      <select
+        className="page-size-select"
+        value={selection === ALL_ROWS ? ALL_ROWS : String(selection)}
+        onChange={onChange}
+      >
+        {sizes.map((size) => (
+          <option key={size} value={size}>
+            {size}
+          </option>
+        ))}
+        {showAll && <option value={ALL_ROWS}>All</option>}
+      </select>
+    </label>
+  );
+}
 
 export default function ResizableGrid({
   rowData,
   columnDefs,
   storageKey = DEFAULT_STORAGE_KEY,
   title = "Demo Grid",
-  // Rows per page in AG Grid's pagination panel.
+  // Rows per page when the grid opens. The rows-per-page dropdown in the
+  // pagination panel can change it afterwards, including to "All".
   pageSize = 20,
   // Shows AG Grid's native loading overlay while rows are being fetched.
   loading = false,
@@ -75,6 +112,15 @@ export default function ResizableGrid({
 }) {
   const internalGridApiRef = useRef(null);
   const gridApiRef = externalGridApiRef ?? internalGridApiRef;
+  const containerRef = useRef(null);
+  // AG Grid's pagination panel's page-size slot (an empty element, because its
+  // own picker is disabled). Populated in onGridReady; the rows-per-page
+  // dropdown is portalled into it from the render below.
+  const [pageSizeSlot, setPageSizeSlot] = useState(null);
+  // Current choice: a number of rows per page, or ALL_ROWS to show every row.
+  // The picker owns this after mount because, in v32, `paginationPageSize` is
+  // the only supported way to change the page size.
+  const [pageSizeSelection, setPageSizeSelection] = useState(pageSize);
   const [hasSavedState, setHasSavedState] = useState(() => {
     if (!isBrowser()) return false;
     try {
@@ -83,6 +129,37 @@ export default function ResizableGrid({
       return false;
     }
   });
+
+  // Follow the prop if the parent changes it; picking a size in the dropdown
+  // only moves `pageSizeSelection`, so this stays quiet after mount.
+  useEffect(() => {
+    setPageSizeSelection(pageSize);
+  }, [pageSize]);
+
+  // --- Rows-per-page dropdown ---------------------------------------------
+  const rowCount = rowData?.length ?? 0;
+  // Handed to AG Grid: every row once "All" is selected.
+  const rowsPerPage =
+    pageSizeSelection === ALL_ROWS ? rowCount || pageSize : pageSizeSelection;
+
+  // Always offer the current size as a choice so the dropdown can never show a
+  // value it does not contain (AG Grid does the same for its own picker).
+  const pageSizeChoices = useMemo(() => {
+    const sizes = new Set(PAGE_SIZE_OPTIONS);
+    if (pageSizeSelection !== ALL_ROWS) sizes.add(pageSizeSelection);
+    return [...sizes].sort((a, b) => a - b);
+  }, [pageSizeSelection]);
+
+  // Offer "All" only when the row count isn't already one of the presets, but
+  // keep it while selected so the dropdown can still display its own value.
+  const showAllRows =
+    rowCount > 0 &&
+    (!PAGE_SIZE_OPTIONS.includes(rowCount) || pageSizeSelection === ALL_ROWS);
+
+  const onPageSizeChange = useCallback((event) => {
+    const { value } = event.target;
+    setPageSizeSelection(value === ALL_ROWS ? ALL_ROWS : Number(value));
+  }, []);
 
   // --- Generated "Edit" column ---------------------------------------------
   // The button only reports the clicked row upwards; the parent decides what
@@ -155,6 +232,11 @@ export default function ResizableGrid({
 
   const onGridReady = useCallback((params) => {
     gridApiRef.current = params.api;
+    // `paginationPageSizeSelector={false}` leaves this slot empty for the
+    // rows-per-page dropdown to render into.
+    setPageSizeSlot(
+      containerRef.current?.querySelector(".ag-paging-page-size") ?? null
+    );
   }, []);
 
   // --- Save ---------------------------------------------------------------
@@ -228,6 +310,7 @@ export default function ResizableGrid({
           src/index.css are scoped to, so they don't leak onto other
           ag-grid-react components on the page. */}
       <div
+        ref={containerRef}
         className="ag-theme-quartz grid-container resizable-grid"
         data-ag-theme-mode="dark"
         style={{ height: "480px", width: "100%" }}
@@ -240,11 +323,24 @@ export default function ResizableGrid({
           onSortChanged={onSortChanged}
           defaultColDef={{ resizable: true, sortable: true }}
           pagination
-          paginationPageSize={pageSize}
-          paginationPageSizeSelector={PAGE_SIZE_OPTIONS}
+          paginationPageSize={rowsPerPage}
+          // AG Grid's own picker only knows numeric page sizes, so it is
+          // disabled and `PageSizePicker` takes its place in the panel.
+          paginationPageSizeSelector={false}
           loading={loading}
           animateRows
         />
+
+        {pageSizeSlot &&
+          createPortal(
+            <PageSizePicker
+              selection={pageSizeSelection}
+              sizes={pageSizeChoices}
+              showAll={showAllRows}
+              onChange={onPageSizeChange}
+            />,
+            pageSizeSlot
+          )}
       </div>
     </div>
   );

@@ -20,6 +20,8 @@ A Next.js **12.x** + React (JS) demo of a custom grid component built on
   [PokeAPI resource list endpoint](https://pokeapi.co/docs/v2#resource-listspagination-section)
   (`GET /api/v2/pokemon?limit=&offset=`), with Previous/Next pagination
   driven by the API's `next`/`previous` links
+- Rows-per-page dropdown in the pagination panel with `10 / 20 / 50 / 100`
+  presets plus an **All** entry that fits every row onto a single page
 - "Reset widths" button inside the grid card clears the saved state
 
 ## Getting started

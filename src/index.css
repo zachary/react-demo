@@ -244,21 +244,43 @@ body {
   cursor: not-allowed;
 }
 
-/* Rows-per-page picker */
+/* Rows-per-page picker.
+   This dropdown is ours rather than AG Grid's (see `PageSizePicker` in
+   ResizableGrid): AG Grid only knows numeric page sizes, so the component
+   disables AG Grid's picker and renders this one into the panel's now-empty
+   `.ag-paging-page-size` slot to add an "All" entry. The styles below keep the
+   control looking like the rest of the panel. */
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .page-size-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-label {
   color: var(--text-dim);
   font-size: 15px;
 }
 
-.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .ag-picker-field-wrapper {
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .page-size-select {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 9px;
   min-height: 34px;
-  padding-left: 10px;
-  padding-right: 6px;
+  padding: 0 8px;
+  font-family: inherit;
   font-size: 15px;
   color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .page-size-select:hover {
+  border-color: var(--accent);
+}
+
+.resizable-grid .ag-root-wrapper .ag-paging-panel .ag-paging-page-size .page-size-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- Error note ---------- */
