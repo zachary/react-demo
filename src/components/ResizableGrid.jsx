@@ -13,6 +13,25 @@ const ACTIONS_COL_ID = "actions";
 // NOT overwrite the persisted widths.
 const USER_RESIZE_SOURCE = "uiColumnResized";
 
+// Same idea for sorting: AG Grid fires sortChanged for sorts it applies
+// itself (initial colDef sort, applyColumnState, column re-creation) with
+// sources like "api"/"gridInitializing"/"gridOptionsChanged". Only a sort the
+// user performed carries "uiColumnSorted".
+const USER_SORT_SOURCE = "uiColumnSorted";
+
+// The `defaultColDef` handed to the grid. It MUST be one module-level object
+// whose reference never changes:
+//
+//  - ag-grid-react diffs its props by reference on every render, and
+//  - AG Grid treats a changed `defaultColDef` as "the column defs changed"
+//    (ColumnModel recreates the columns and re-applies `width`/`sort` from the
+//    colDefs on top of the live column state).
+//
+// An inline `defaultColDef={{ ... }}` therefore made the grid re-apply the
+// defs on every re-render, which is why resizes and sorts kept snapping back
+// to the state the defs were built from.
+const DEFAULT_COL_DEF = { resizable: true, sortable: true };
+
 // localStorage only exists in the browser. Next.js server-renders this
 // component, so every access must be guarded to avoid `ReferenceError`.
 function isBrowser() {
@@ -47,6 +66,11 @@ function loadSavedColumnState(storageKey) {
  *    handed to the grid, so columns are *created* with the persisted state.
  *    This avoids a race where the grid's post-ready layout pass resets state
  *    applied via `applyColumnState` inside `onGridReady`.
+ *  - Because of that, the column definitions (and `defaultColDef`) must keep a
+ *    *stable identity* between renders: ag-grid-react re-applies any prop whose
+ *    reference changed, and AG Grid answers a changed `defaultColDef`/
+ *    `columnDefs` by recreating the columns and re-applying `width`/`sort`
+ *    from the defs — undoing whatever the user just resized or sorted.
  *  - Paging uses AG Grid's own pagination panel. The panel is themed from the
  *    global stylesheet by overriding AG Grid's `ag-paging-*` class selectors,
  *    scoped to this component's `resizable-grid` marker class so the styles
@@ -164,9 +188,21 @@ export default function ResizableGrid({
   // --- Generated "Edit" column ---------------------------------------------
   // The button only reports the clicked row upwards; the parent decides what
   // to do with it.
+  //
+  // The handler is read through a ref so the column def keeps the same
+  // identity when the parent rebuilds the callback (a common case: the parent
+  // derives it from its row data). Only *whether* an Edit column exists is part
+  // of the memo's dependencies, so the def never changes mid-session.
+  const onEditRowRef = useRef(onEditRow);
+  useEffect(() => {
+    onEditRowRef.current = onEditRow;
+  }, [onEditRow]);
+
+  const hasEditColumn = Boolean(onEditRow);
+
   const actionsColumnDef = useMemo(
     () =>
-      onEditRow
+      hasEditColumn
         ? {
             colId: ACTIONS_COL_ID,
             headerName: "",
@@ -182,14 +218,14 @@ export default function ResizableGrid({
                 type="button"
                 className="btn btn-ghost row-edit-btn"
                 title="Edit this row"
-                onClick={() => onEditRow(params.data)}
+                onClick={() => onEditRowRef.current?.(params.data)}
               >
                 Edit
               </button>
             ),
           }
         : null,
-    [onEditRow]
+    [hasEditColumn]
   );
 
   // Only the columns the caller passed are persisted-sensitive, but the
@@ -204,10 +240,15 @@ export default function ResizableGrid({
   // --- Load: bake saved widths into the column defs (once per mount) -------
   // Note: this assumes `columnDefs` is a stable reference from the parent.
   // If a parent rebuilt `columnDefs` on every render, ag-grid-react would
-  // re-apply the defs and reset user widths.
+  // re-apply the defs, and AG Grid re-applies `width`/`sort` from those defs,
+  // resetting whatever the user has resized or sorted.
+  //
+  // `savedStateVersion` invalidates this snapshot when the user resets the
+  // grid, so the defs stop carrying the state that was just cleared.
+  const [savedStateVersion, setSavedStateVersion] = useState(0);
   const savedColumnState = useMemo(
     () => loadSavedColumnState(storageKey),
-    [storageKey]
+    [storageKey, savedStateVersion]
   );
   const restoredColumnDefs = useMemo(() => {
     if (!savedColumnState) return allColumnDefs;
@@ -263,26 +304,40 @@ export default function ResizableGrid({
     [saveColumnState]
   );
 
-  // Sort changes don't carry a source flag, so save on every sortChanged. The
-  // initial bake-in of saved sort state triggers this once on mount, but it
-  // re-writes the same state, so it's harmless. A programmatic reset also
-  // fires this, which correctly persists the cleared sort.
-  const onSortChanged = useCallback(() => {
-    saveColumnState();
-  }, [saveColumnState]);
+  // Save the sort only when the user made it. AG Grid also fires sortChanged
+  // for state it applies itself — the colDef sort at startup, an
+  // `applyColumnState` call, and the re-creation of the columns — and saving
+  // those would overwrite the stored state with values the user never chose
+  // (e.g. pressing Reset would immediately write the cleared state back).
+  const onSortChanged = useCallback(
+    (event) => {
+      if (event?.source === USER_SORT_SOURCE) {
+        saveColumnState();
+      }
+    },
+    [saveColumnState]
+  );
 
   // --- Reset widths to the original defaults ----------------------------------
   const resetColumnState = useCallback(() => {
     if (!isBrowser()) return;
     localStorage.removeItem(storageKey);
     setHasSavedState(false);
+    // Drop the memoised snapshot so the column defs go back to their plain
+    // defaults instead of re-applying the state that was just cleared.
+    setSavedStateVersion((version) => version + 1);
     const api = gridApiRef.current;
     if (!api) return;
     const defaults = allColumnDefs.map((def) => ({
       colId: def.colId ?? def.field,
       width: def.width,
+      // Sorting is part of the reset, but a state item *without* `sort`
+      // leaves the column untouched — `null` ("no sort") is what clears it.
+      sort: null,
+      sortIndex: null,
     }));
-    // Programmatic change → source "api" → not persisted by onColumnResized.
+    // Programmatic change → source "api" → not persisted by onColumnResized /
+    // onSortChanged, so the cleared state isn't written straight back.
     api.applyColumnState({ state: defaults });
   }, [storageKey, allColumnDefs]);
 
@@ -321,7 +376,8 @@ export default function ResizableGrid({
           onGridReady={onGridReady}
           onColumnResized={onColumnResized}
           onSortChanged={onSortChanged}
-          defaultColDef={{ resizable: true, sortable: true }}
+          // Stable reference: see DEFAULT_COL_DEF above.
+          defaultColDef={DEFAULT_COL_DEF}
           pagination
           paginationPageSize={rowsPerPage}
           // AG Grid's own picker only knows numeric page sizes, so it is
